@@ -117,12 +117,17 @@ bool ConstantRange::isWrappedSet() const {
 /// getSetSize - Return the number of elements in this set.
 ///
 APInt ConstantRange::getSetSize() const {
-  if (isEmptySet()) 
+  if (isEmptySet())
     return APInt(getBitWidth(), 0);
+
   if (getBitWidth() == 1) {
     if (Lower != Upper)  // One of T or F in the set...
-      return APInt(2, 1);
-    return APInt(2, 2);      // Must be full set...
+    {
+        APInt Size = APInt(2, 1);
+        return Size;
+    }
+    APInt Size = APInt(2, 2);
+    return Size;
   }
 
   // Simply subtract the bounds...

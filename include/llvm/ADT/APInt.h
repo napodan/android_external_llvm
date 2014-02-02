@@ -6,14 +6,15 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
-//
-// This file implements a class to represent arbitrary precision integral
-// constant values and operations on them.
-//
+///
+/// \file
+/// \brief This file implements a class to represent arbitrary precision
+/// integral constant values and operations on them.
+///
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_APINT_H
-#define LLVM_APINT_H
+#ifndef LLVM_ADT_APINT_H
+#define LLVM_ADT_APINT_H
 
 #include "llvm/Support/MathExtras.h"
 #include <cassert>
@@ -22,29 +23,29 @@
 #include <string>
 
 namespace llvm {
-  class Serializer;
-  class Deserializer;
-  class FoldingSetNodeID;
-  class raw_ostream;
-  class StringRef;
+class Deserializer;
+class FoldingSetNodeID;
+class Serializer;
+class StringRef;
+class raw_ostream;
 
-  template<typename T>
-  class SmallVectorImpl;
+template <typename T> class SmallVectorImpl;
 
-  // An unsigned host type used as a single part of a multi-part
-  // bignum.
-  typedef uint64_t integerPart;
+// An unsigned host type used as a single part of a multi-part
+// bignum.
+typedef uint64_t integerPart;
 
-  const unsigned int host_char_bit = 8;
-  const unsigned int integerPartWidth = host_char_bit *
-    static_cast<unsigned int>(sizeof(integerPart));
+const unsigned int host_char_bit = 8;
+const unsigned int integerPartWidth =
+    host_char_bit * static_cast<unsigned int>(sizeof(integerPart));
 
 //===----------------------------------------------------------------------===//
 //                              APInt Class
 //===----------------------------------------------------------------------===//
 
-/// APInt - This class represents arbitrary precision constant integral values.
-/// It is a functional replacement for common case unsigned integer type like
+/// \brief Class for arbitrary precision integers.
+///
+/// APInt is a functional replacement for common case unsigned integer type like
 /// "unsigned", "unsigned long" or "uint64_t", but also allows non-byte-width
 /// integer sizes and large integer value types such as 3-bits, 15-bits, or more
 /// than 64-bits of precision. APInt provides a variety of arithmetic operators
@@ -68,65 +69,68 @@ namespace llvm {
 ///   * In general, the class tries to follow the style of computation that LLVM
 ///     uses in its IR. This simplifies its use for LLVM.
 ///
-/// @brief Class for arbitrary precision integers.
 class APInt {
-  unsigned BitWidth;      ///< The number of bits in this APInt.
+  unsigned BitWidth; ///< The number of bits in this APInt.
 
   /// This union is used to store the integer value. When the
   /// integer bit-width <= 64, it uses VAL, otherwise it uses pVal.
   union {
-    uint64_t VAL;    ///< Used to store the <= 64 bits integer value.
-    uint64_t *pVal;  ///< Used to store the >64 bits integer value.
+    uint64_t VAL;   ///< Used to store the <= 64 bits integer value.
+    uint64_t *pVal; ///< Used to store the >64 bits integer value.
   };
 
   /// This enum is used to hold the constants we needed for APInt.
   enum {
     /// Bits in a word
-    APINT_BITS_PER_WORD = static_cast<unsigned int>(sizeof(uint64_t)) *
-                          CHAR_BIT,
+    APINT_BITS_PER_WORD =
+        static_cast<unsigned int>(sizeof(uint64_t)) * CHAR_BIT,
     /// Byte size of a word
     APINT_WORD_SIZE = static_cast<unsigned int>(sizeof(uint64_t))
   };
 
+  /// \brief Fast internal constructor
+  ///
   /// This constructor is used only internally for speed of construction of
   /// temporaries. It is unsafe for general use so it is not public.
-  /// @brief Fast internal constructor
-  APInt(uint64_t* val, unsigned bits) : BitWidth(bits), pVal(val) { }
+  APInt(uint64_t *val, unsigned bits) : BitWidth(bits), pVal(val) {}
 
-  /// @returns true if the number of bits <= 64, false otherwise.
-  /// @brief Determine if this APInt just has one word to store value.
-  bool isSingleWord() const {
-    return BitWidth <= APINT_BITS_PER_WORD;
-  }
+  /// \brief Determine if this APInt just has one word to store value.
+  ///
+  /// \returns true if the number of bits <= 64, false otherwise.
+  bool isSingleWord() const { return BitWidth <= APINT_BITS_PER_WORD; }
 
-  /// @returns the word position for the specified bit position.
-  /// @brief Determine which word a bit is in.
+  /// \brief Determine which word a bit is in.
+  ///
+  /// \returns the word position for the specified bit position.
   static unsigned whichWord(unsigned bitPosition) {
     return bitPosition / APINT_BITS_PER_WORD;
   }
 
-  /// @returns the bit position in a word for the specified bit position
+  /// \brief Determine which bit in a word a bit is in.
+  ///
+  /// \returns the bit position in a word for the specified bit position
   /// in the APInt.
-  /// @brief Determine which bit in a word a bit is in.
   static unsigned whichBit(unsigned bitPosition) {
     return bitPosition % APINT_BITS_PER_WORD;
   }
 
+  /// \brief Get a single bit mask.
+  ///
+  /// \returns a uint64_t with only bit at "whichBit(bitPosition)" set
   /// This method generates and returns a uint64_t (word) mask for a single
   /// bit at a specific bit position. This is used to mask the bit in the
   /// corresponding word.
-  /// @returns a uint64_t with only bit at "whichBit(bitPosition)" set
-  /// @brief Get a single bit mask.
   static uint64_t maskBit(unsigned bitPosition) {
     return 1ULL << whichBit(bitPosition);
   }
 
+  /// \brief Clear unused high order bits
+  ///
   /// This method is used internally to clear the to "N" bits in the high order
   /// word that are not used by the APInt. This is needed after the most
   /// significant word is assigned a value to ensure that those bits are
   /// zero'd out.
-  /// @brief Clear unused high order bits
-  APInt& clearUnusedBits() {
+  APInt &clearUnusedBits() {
     // Compute how many bits are used in the final word
     unsigned wordBits = BitWidth % APINT_BITS_PER_WORD;
     if (wordBits == 0)
@@ -144,12 +148,15 @@ class APInt {
     return *this;
   }
 
-  /// @returns the corresponding word for the specified bit position.
-  /// @brief Get the word corresponding to a bit position
+  /// \brief Get the word corresponding to a bit position
+  /// \returns the corresponding word for the specified bit position.
   uint64_t getWord(unsigned bitPosition) const {
     return isSingleWord() ? VAL : pVal[whichWord(bitPosition)];
   }
 
+  /// \brief Convert a char array into an APInt
+  ///
+  /// \param radix 2, 8, 10, 16, or 36
   /// Converts a string into a number.  The string must be non-empty
   /// and well-formed as a number of the given base. The bit-width
   /// must be sufficient to hold the result.
@@ -159,43 +166,40 @@ class APInt {
   /// StringRef::getAsInteger is superficially similar but (1) does
   /// not assume that the string is well-formed and (2) grows the
   /// result to hold the input.
-  ///
-  /// @param radix 2, 8, 10, or 16
-  /// @brief Convert a char array into an APInt
   void fromString(unsigned numBits, const StringRef &str, uint8_t radix);
 
+  /// \brief An internal division function for dividing APInts.
+  ///
   /// This is used by the toString method to divide by the radix. It simply
   /// provides a more convenient form of divide for internal use since KnuthDiv
   /// has specific constraints on its inputs. If those constraints are not met
   /// then it provides a simpler form of divide.
-  /// @brief An internal division function for dividing APInts.
-  static void divide(const APInt LHS, unsigned lhsWords,
-                     const APInt &RHS, unsigned rhsWords,
-                     APInt *Quotient, APInt *Remainder);
+  static void divide(const APInt LHS, unsigned lhsWords, const APInt &RHS,
+                     unsigned rhsWords, APInt *Quotient, APInt *Remainder);
 
   /// out-of-line slow case for inline constructor
   void initSlowCase(unsigned numBits, uint64_t val, bool isSigned);
 
   /// out-of-line slow case for inline copy constructor
-  void initSlowCase(const APInt& that);
+  void initSlowCase(const APInt &that);
 
   /// out-of-line slow case for shl
   APInt shlSlowCase(unsigned shiftAmt) const;
 
   /// out-of-line slow case for operator&
-  APInt AndSlowCase(const APInt& RHS) const;
+  APInt AndSlowCase(const APInt &RHS) const;
 
   /// out-of-line slow case for operator|
-  APInt OrSlowCase(const APInt& RHS) const;
+  APInt OrSlowCase(const APInt &RHS) const;
 
   /// out-of-line slow case for operator^
-  APInt XorSlowCase(const APInt& RHS) const;
+  APInt XorSlowCase(const APInt &RHS) const;
 
   /// out-of-line slow case for operator=
-  APInt& AssignSlowCase(const APInt& RHS);
+  APInt &AssignSlowCase(const APInt &RHS);
 
   /// out-of-line slow case for operator==
-  bool EqualSlowCase(const APInt& RHS) const;
+  bool EqualSlowCase(const APInt &RHS) const;
 
   /// out-of-line slow case for operator==
   bool EqualSlowCase(uint64_t Val) const;
@@ -210,18 +214,21 @@ class APInt {
   unsigned countPopulationSlowCase() const;
 
 public:
-  /// @name Constructors
+  /// \name Constructors
   /// @{
+
+  /// \brief Create a new APInt of numBits width, initialized as val.
+  ///
   /// If isSigned is true then val is treated as if it were a signed value
   /// (i.e. as an int64_t) and the appropriate sign extension to the bit width
   /// will be done. Otherwise, no sign extension occurs (high order bits beyond
   /// the range of val are zero filled).
-  /// @param numBits the bit width of the constructed APInt
-  /// @param val the initial value of the APInt
-  /// @param isSigned how to treat signedness of val
-  /// @brief Create a new APInt of numBits width, initialized as val.
+  ///
+  /// \param numBits the bit width of the constructed APInt
+  /// \param val the initial value of the APInt
+  /// \param isSigned how to treat signedness of val
   APInt(unsigned numBits, uint64_t val, bool isSigned = false)
-    : BitWidth(numBits), VAL(0) {
+      : BitWidth(numBits), VAL(0) {
     assert(BitWidth && "bitwidth too small");
     if (isSingleWord())
       VAL = val;
@@ -230,30 +237,31 @@ public:
     clearUnusedBits();
   }
 
-  /// Note that numWords can be smaller or larger than the corresponding bit
-  /// width but any extraneous bits will be dropped.
-  /// @param numBits the bit width of the constructed APInt
-  /// @param numWords the number of words in bigVal
-  /// @param bigVal a sequence of words to form the initial value of the APInt
-  /// @brief Construct an APInt of numBits width, initialized as bigVal[].
+  /// Equivalent to APInt(numBits, ArrayRef<uint64_t>(bigVal, numWords)), but
+  /// deprecated because this constructor is prone to ambiguity with the
+  /// APInt(unsigned, uint64_t, bool) constructor.
+  ///
+  /// If this overload is ever deleted, care should be taken to prevent calls
+  /// from being incorrectly captured by the APInt(unsigned, uint64_t, bool)
+  /// constructor.
   APInt(unsigned numBits, unsigned numWords, const uint64_t bigVal[]);
 
-  /// This constructor interprets the string \arg str in the given radix. The
+  /// \brief Construct an APInt from a string representation.
+  ///
+  /// This constructor interprets the string \p str in the given radix. The
   /// interpretation stops when the first character that is not suitable for the
   /// radix is encountered, or the end of the string. Acceptable radix values
-  /// are 2, 8, 10 and 16. It is an error for the value implied by the string to
-  /// require more bits than numBits.
+  /// are 2, 8, 10, 16, and 36. It is an error for the value implied by the
+  /// string to require more bits than numBits.
   ///
-  /// @param numBits the bit width of the constructed APInt
-  /// @param str the string to be interpreted
-  /// @param radix the radix to use for the conversion 
-  /// @brief Construct an APInt from a string representation.
+  /// \param numBits the bit width of the constructed APInt
+  /// \param str the string to be interpreted
+  /// \param radix the radix to use for the conversion
   APInt(unsigned numBits, const StringRef &str, uint8_t radix);
 
   /// Simply makes *this a copy of that.
   /// @brief Copy Constructor.
-  APInt(const APInt& that)
-    : BitWidth(that.BitWidth), VAL(0) {
+  APInt(const APInt &that) : BitWidth(that.BitWidth), VAL(0) {
     assert(BitWidth && "bitwidth too small");
     if (isSingleWord())
       VAL = that.VAL;
@@ -261,19 +269,21 @@ public:
       initSlowCase(that);
   }
 
-  /// @brief Destructor.
+  /// \brief Destructor.
   ~APInt() {
     if (!isSingleWord())
-      delete [] pVal;
+      delete[] pVal;
   }
 
-  /// Default constructor that creates an uninitialized APInt.  This is useful
-  ///  for object deserialization (pair this with the static method Read).
+  /// \brief Default constructor that creates an uninitialized APInt.
+  ///
+  /// This is useful for object deserialization (pair this with the static
+  ///  method Read).
   explicit APInt() : BitWidth(1) {}
 
-  /// Profile - Used to insert APInt objects, or objects that contain APInt
-  ///  objects, into FoldingSets.
-  void Profile(FoldingSetNodeID& id) const;
+  /// Used to insert APInt objects, or objects that contain APInt objects, into
+  ///  FoldingSets.
+  void Profile(FoldingSetNodeID &id) const;
 
   /// @brief Used by the Bitcode serializer to emit APInts to Bitcode.
   void Emit(Serializer& S) const;
@@ -282,66 +292,66 @@ public:
   void Read(Deserializer& D);
 
   /// @}
-  /// @name Value Tests
+  /// \name Value Tests
   /// @{
+
+  /// \brief Determine sign of this APInt.
+  ///
   /// This tests the high bit of this APInt to determine if it is set.
-  /// @returns true if this APInt is negative, false otherwise
-  /// @brief Determine sign of this APInt.
-  bool isNegative() const {
-    return (*this)[BitWidth - 1];
-  }
+  ///
+  /// \returns true if this APInt is negative, false otherwise
+  bool isNegative() const { return (*this)[BitWidth - 1]; }
 
+  /// \brief Determine if this APInt Value is non-negative (>= 0)
+  ///
   /// This tests the high bit of the APInt to determine if it is unset.
-  /// @brief Determine if this APInt Value is non-negative (>= 0)
-  bool isNonNegative() const {
-    return !isNegative();
-  }
+  bool isNonNegative() const { return !isNegative(); }
 
+  /// \brief Determine if this APInt Value is positive.
+  ///
   /// This tests if the value of this APInt is positive (> 0). Note
   /// that 0 is not a positive value.
-  /// @returns true if this APInt is positive.
-  /// @brief Determine if this APInt Value is positive.
-  bool isStrictlyPositive() const {
-    return isNonNegative() && (*this) != 0;
-  }
+  ///
+  /// \returns true if this APInt is positive.
+  bool isStrictlyPositive() const { return isNonNegative() && (*this) != 0; }
 
+  /// \brief Determine if all bits are set
+  ///
   /// This checks to see if the value has all bits of the APInt are set or not.
-  /// @brief Determine if all bits are set
   bool isAllOnesValue() const {
     return countPopulation() == BitWidth;
   }
 
+  /// \brief Determine if this is the largest unsigned value.
+  ///
   /// This checks to see if the value of this APInt is the maximum unsigned
   /// value for the APInt's bit width.
-  /// @brief Determine if this is the largest unsigned value.
-  bool isMaxValue() const {
-    return countPopulation() == BitWidth;
-  }
+  bool isMaxValue() const { return isAllOnesValue(); }
 
+  /// \brief Determine if this is the largest signed value.
+  ///
   /// This checks to see if the value of this APInt is the maximum signed
   /// value for the APInt's bit width.
-  /// @brief Determine if this is the largest signed value.
   bool isMaxSignedValue() const {
-    return BitWidth == 1 ? VAL == 0 :
-                          !isNegative() && countPopulation() == BitWidth - 1;
+    return BitWidth == 1 ? VAL == 0
+                         : !isNegative() && countPopulation() == BitWidth - 1;
   }
 
+  /// \brief Determine if this is the smallest unsigned value.
+  ///
   /// This checks to see if the value of this APInt is the minimum unsigned
   /// value for the APInt's bit width.
-  /// @brief Determine if this is the smallest unsigned value.
-  bool isMinValue() const {
-    return countPopulation() == 0;
-  }
+  bool isMinValue() const { return countPopulation() == 0; }
 
+  /// \brief Determine if this is the smallest signed value.
+  ///
   /// This checks to see if the value of this APInt is the minimum signed
   /// value for the APInt's bit width.
-  /// @brief Determine if this is the smallest signed value.
   bool isMinSignedValue() const {
-    return BitWidth == 1 ? VAL == 1 :
-                           isNegative() && countPopulation() == 1;
+    return BitWidth == 1 ? VAL == 1 : isNegative() && countPopulation() == 1;
   }
 
-  /// @brief Check if this APInt has an N-bits unsigned integer value.
+  /// \brief Check if this APInt has an N-bits unsigned integer value.
   bool isIntN(unsigned N) const {
     assert(N && "N == 0 ???");
     if (N >= getBitWidth())
@@ -354,82 +364,90 @@ public:
     return Tmp == (*this);
   }
 
-  /// @brief Check if this APInt has an N-bits signed integer value.
+  /// \brief Check if this APInt has an N-bits signed integer value.
   bool isSignedIntN(unsigned N) const {
     assert(N && "N == 0 ???");
     return getMinSignedBits() <= N;
   }
 
-  /// @returns true if the argument APInt value is a power of two > 0.
+  /// \brief Check if this APInt's value is a power of two greater than zero.
+  ///
+  /// \returns true if the argument APInt value is a power of two > 0.
   bool isPowerOf2() const;
 
-  /// isSignBit - Return true if this is the value returned by getSignBit.
+  /// \brief Check if the APInt's value is returned by getSignBit.
+  ///
+  /// \returns true if this is the value returned by getSignBit.
   bool isSignBit() const { return isMinSignedValue(); }
 
+  /// \brief Convert APInt to a boolean value.
+  ///
   /// This converts the APInt to a boolean value as a test against zero.
-  /// @brief Boolean conversion function.
-  bool getBoolValue() const {
-    return *this != 0;
-  }
+  bool getBoolValue() const { return *this != 0; }
 
-  /// getLimitedValue - If this value is smaller than the specified limit,
-  /// return it, otherwise return the limit value.  This causes the value
-  /// to saturate to the limit.
+  /// If this value is smaller than the specified limit, return it, otherwise
+  /// return the limit value.  This causes the value to saturate to the limit.
   uint64_t getLimitedValue(uint64_t Limit = ~0ULL) const {
-    return (getActiveBits() > 64 || getZExtValue() > Limit) ?
-      Limit :  getZExtValue();
+    return (getActiveBits() > 64 || getZExtValue() > Limit) ? Limit
+                                                            : getZExtValue();
   }
 
   /// @}
-  /// @name Value Generators
+  /// \name Value Generators
   /// @{
-  /// @brief Gets maximum unsigned value of APInt for specific bit width.
+
+  /// \brief Gets maximum unsigned value of APInt for specific bit width.
   static APInt getMaxValue(unsigned numBits) {
     return APInt(numBits, 0).set();
   }
 
-  /// @brief Gets maximum signed value of APInt for a specific bit width.
+  /// \brief Gets maximum signed value of APInt for a specific bit width.
   static APInt getSignedMaxValue(unsigned numBits) {
     return APInt(numBits, 0).set().clear(numBits - 1);
   }
 
-  /// @brief Gets minimum unsigned value of APInt for a specific bit width.
-  static APInt getMinValue(unsigned numBits) {
-    return APInt(numBits, 0);
-  }
+  /// \brief Gets minimum unsigned value of APInt for a specific bit width.
+  static APInt getMinValue(unsigned numBits) { return APInt(numBits, 0); }
 
-  /// @brief Gets minimum signed value of APInt for a specific bit width.
+  /// \brief Gets minimum signed value of APInt for a specific bit width.
   static APInt getSignedMinValue(unsigned numBits) {
     return APInt(numBits, 0).set(numBits - 1);
   }
 
-  /// getSignBit - This is just a wrapper function of getSignedMinValue(), and
-  /// it helps code readability when we want to get a SignBit.
-  /// @brief Get the SignBit for a specific bit width.
+  /// \brief Get the SignBit for a specific bit width.
+  ///
+  /// This is just a wrapper function of getSignedMinValue(), and it helps code
+  /// readability when we want to get a SignBit.
   static APInt getSignBit(unsigned BitWidth) {
     return getSignedMinValue(BitWidth);
   }
 
-  /// @returns the all-ones value for an APInt of the specified bit-width.
-  /// @brief Get the all-ones value.
+  /// \brief Get the all-ones value.
+  ///
+  /// \returns the all-ones value for an APInt of the specified bit-width.
   static APInt getAllOnesValue(unsigned numBits) {
     return APInt(numBits, 0).set();
   }
 
-  /// @returns the '0' value for an APInt of the specified bit-width.
-  /// @brief Get the '0' value.
-  static APInt getNullValue(unsigned numBits) {
-    return APInt(numBits, 0);
-  }
+  /// \brief Get the '0' value.
+  ///
+  /// \returns the '0' value for an APInt of the specified bit-width.
+  static APInt getNullValue(unsigned numBits) { return APInt(numBits, 0); }
 
+  /// \brief Compute an APInt containing numBits highbits from this APInt.
+  ///
   /// Get an APInt with the same BitWidth as this APInt, just zero mask
   /// the low bits and right shift to the least significant bit.
-  /// @returns the high "numBits" bits of this APInt.
+  ///
+  /// \returns the high "numBits" bits of this APInt.
   APInt getHiBits(unsigned numBits) const;
 
+  /// \brief Compute an APInt containing numBits lowbits from this APInt.
+  ///
   /// Get an APInt with the same BitWidth as this APInt, just zero mask
   /// the high bits.
-  /// @returns the low "numBits" bits of this APInt.
+  ///
+  /// \returns the low "numBits" bits of this APInt.
   APInt getLoBits(unsigned numBits) const;
 
   /// Constructs an APInt value that has a contiguous range of bits set. The
@@ -437,24 +455,27 @@ public:
   /// bits will be zero. For example, with parameters(32, 0, 16) you would get
   /// 0x0000FFFF. If hiBit is less than loBit then the set bits "wrap". For
   /// example, with parameters (32, 28, 4), you would get 0xF000000F.
-  /// @param numBits the intended bit width of the result
-  /// @param loBit the index of the lowest bit set.
-  /// @param hiBit the index of the highest bit set.
-  /// @returns An APInt value with the requested bits set.
-  /// @brief Get a value with a block of bits set.
+  ///
+  /// \param numBits the intended bit width of the result
+  /// \param loBit the index of the lowest bit set.
+  /// \param hiBit the index of the highest bit set.
+  ///
+  /// \returns An APInt value with the requested bits set.
   static APInt getBitsSet(unsigned numBits, unsigned loBit, unsigned hiBit) {
     assert(hiBit <= numBits && "hiBit out of range");
     assert(loBit < numBits && "loBit out of range");
     if (hiBit < loBit)
       return getLowBitsSet(numBits, hiBit) |
-             getHighBitsSet(numBits, numBits-loBit);
-    return getLowBitsSet(numBits, hiBit-loBit).shl(loBit);
+             getHighBitsSet(numBits, numBits - loBit);
+    return getLowBitsSet(numBits, hiBit - loBit).shl(loBit);
   }
 
+  /// \brief Get a value with high bits set
+  ///
   /// Constructs an APInt value that has the top hiBitsSet bits set.
-  /// @param numBits the bitwidth of the result
-  /// @param hiBitsSet the number of high-order bits set in the result.
-  /// @brief Get a value with high bits set
+  ///
+  /// \param numBits the bitwidth of the result
+  /// \param hiBitsSet the number of high-order bits set in the result.
   static APInt getHighBitsSet(unsigned numBits, unsigned hiBitsSet) {
     assert(hiBitsSet <= numBits && "Too many bits to set!");
     // Handle a degenerate case, to avoid shifting by word size
@@ -467,10 +488,12 @@ public:
     return (~APInt(numBits, 0)).shl(shiftAmt);
   }
 
+  /// \brief Get a value with low bits set
+  ///
   /// Constructs an APInt value that has the bottom loBitsSet bits set.
-  /// @param numBits the bitwidth of the result
-  /// @param loBitsSet the number of low-order bits set in the result.
-  /// @brief Get a value with low bits set
+  ///
+  /// \param numBits the bitwidth of the result
+  /// \param loBitsSet the number of low-order bits set in the result.
   static APInt getLowBitsSet(unsigned numBits, unsigned loBitsSet) {
     assert(loBitsSet <= numBits && "Too many bits to set!");
     // Handle a degenerate case, to avoid shifting by word size
